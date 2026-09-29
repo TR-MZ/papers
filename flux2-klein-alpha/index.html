@@ -1,0 +1,355 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Teaching a FLUX.2 VAE to See Transparency</title><meta name="author" content="Xavier Jara"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap"><style>
+:root{color-scheme:light;--ink:#141414;--ink2:#555;--rule:#1a1a1a;--soft:#e6e5e1;--desk:#ecebe7;--paper:#fff;--hover:#f6f5f1;--accent:#1f5fb8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--desk);color:var(--ink);font:16.5px/1.55 "Source Serif 4","Liberation Serif",Georgia,serif;
+  font-optical-sizing:auto;-webkit-font-smoothing:antialiased}
+main{max-width:820px;margin:32px auto;padding:64px 76px 88px;background:var(--paper);box-shadow:0 1px 3px rgba(0,0,0,.08),0 8px 28px rgba(0,0,0,.06)}
+p,li{text-align:justify;hyphens:auto}
+h1{font-size:29px;line-height:1.2;text-align:center;font-weight:700;margin:.2em 0 .5em;letter-spacing:-.005em}
+h2{font-size:18.5px;font-weight:700;margin:1.9em 0 .5em}
+h3{font-size:16.5px;font-weight:700;font-style:italic;margin:1.4em 0 .4em}
+.byline{text-align:center;margin:0 0 2.2em}
+.byline .author{font-size:17.5px;font-weight:600}
+.byline .meta,.byline .links{font-size:13.5px;color:var(--ink2);margin-top:3px}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.blk[data-sec="abstract"] h2{text-align:center;font-size:14px;font-variant:small-caps;letter-spacing:.08em;margin:0 0 .3em}
+.blk[data-sec="abstract"] p,.blk[data-sec="abstract"] ul{font-size:15px;margin-left:2.6em;margin-right:2.6em}
+blockquote{margin:1em 0;padding:10px 16px;border:1px solid var(--soft);background:#fafaf8;font-size:15px}
+code{font:13px/1.4 "DejaVu Sans Mono",monospace;background:#f3f2ee;padding:1px 4px;border-radius:2px}
+pre{background:#f7f6f3;padding:12px 14px;overflow-x:auto;border-left:2px solid var(--soft)} pre code{padding:0;background:none}
+.tbl{overflow-x:auto;margin:1.2em 0}
+table{border-collapse:collapse;min-width:100%;font-size:14px;line-height:1.35;border-top:1.6px solid var(--rule);border-bottom:1.6px solid var(--rule)}
+th,td{padding:5px 9px;text-align:left;vertical-align:top}
+th{border-bottom:.8px solid var(--rule);font-weight:600}
+img{max-width:100%;height:auto;display:block;margin:1.1em auto}
+hr{display:none}
+em{font-style:italic}
+.blk{border-radius:3px;margin:0 -8px;padding:0 8px;cursor:text;transition:background .1s}
+.blk:hover{background:var(--hover)}
+.blk>:first-child{margin-top:.6em}
+.blk.editing{background:transparent;padding:8px}
+.blk textarea{width:100%;min-height:3em;resize:vertical;font:14px/1.5 "DejaVu Sans Mono",monospace;color:var(--ink);
+  background:#f7f6f3;border:1px solid var(--accent);border-radius:4px;padding:10px 12px;outline:none;text-align:left}
+.bar{display:flex;gap:8px;align-items:center;margin-top:6px;font:13px "Liberation Sans",Arial,sans-serif;color:var(--ink2)}
+.bar button{font:inherit;padding:5px 12px;border-radius:4px;border:1px solid var(--soft);background:#fff;color:var(--ink);cursor:pointer}
+.bar button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:8px 16px;border-radius:6px;
+  background:#141414;color:#fff;font:14px "Liberation Sans",Arial,sans-serif;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:.92}
+#hint{position:fixed;right:16px;top:12px;font:12px "Liberation Sans",Arial,sans-serif;color:var(--ink2)}
+@media (max-width:760px){main{margin:0;padding:28px 16px 64px;box-shadow:none}#hint{display:none}
+  .blk[data-sec="abstract"] p{margin-left:0;margin-right:0}}
+@media print{body{background:#fff}main{margin:0;padding:0;box-shadow:none;max-width:none}#hint,#toast{display:none}
+  .blk:hover{background:none} h2,h3{break-after:avoid} img,.tbl,figure{break-inside:avoid} @page{margin:2cm}}
+.blk{cursor:auto}.blk:hover{background:none}</style></head><body><main><div class="blk" data-sec=""><h1>Teaching a FLUX.2 VAE to See Transparency</h1></div><div class="blk" data-sec=""><div class="byline">
+<div class="author">Xavier Jara</div>
+<div class="meta">29 September 2026 (project started in 18 February 2026)</div>
+<div class="links"><a href="paper.pdf">PDF</a> · <a href="https://github.com/TR-MZ/flux2-klein-alpha">github.com/TR-MZ/flux2-klein-alpha</a> · <a href="https://huggingface.co/trmz/flux2-klein-alpha">huggingface.co/trmz/flux2-klein-alpha</a> · <a href="https://tr-mz.com">tr-mz.com</a></div>
+</div></div><div class="blk" data-sec="abstract"><h2>Abstract</h2></div><div class="blk" data-sec="abstract"><p>Image generators such as FLUX.2 Klein produce opaque pictures: their VAE (the network that turns pixels into the compact "latent" code the generator works in, and back) has only three colour channels. I widened the FLUX.2 VAE to four channels (RGBA) and fine-tuned it with the triple-background loss of AlphaVAE (Wang et al., 2025). Only 2,305 of its 84,048,677 parameters are new. After 58,000 steps, my main VAE reconstructs alpha with RMSE 0.0204 on 24 held-out images.</p></div><div class="blk" data-sec="abstract"><p>On top of this VAE I trained three foreground-extraction adapters for FLUX.2 Klein. On 20 held-out images, at a 50% alpha cut:</p></div><div class="blk" data-sec="abstract"><ul>
+<li><strong>Extract-9B</strong>, a LoRA on the 9-billion-parameter model, reaches IoU <strong>0.934</strong>;</li>
+<li><strong>Extract-4B-Full</strong>, a full fine-tune of the 4B model, reaches <strong>0.879</strong>;</li>
+<li>my first attempt, <strong>Extract-4B-LoRA</strong>, reaches <strong>0.665</strong>.</li>
+</ul></div><div class="blk" data-sec="abstract"><p>While I was working on this, Qwen released Qwen-Image-2.1, a newer model with transparency built in. An extractor I later trained on it reaches the same accuracy as Extract-9B (0.919 raw, 0.939 with post-processing) and runs about 5× faster (2.4 s against 11 s per image), while Extract-9B keeps soft, semi-transparent detail better. To train these adapters, I modified the open-source ai-toolkit trainer so it can load an RGBA VAE, train on transparent images, and weight the loss towards object edges.</p></div><div class="blk" data-sec="abstract"><hr /></div><div class="blk" data-sec="1-problem"><h2>1. Problem</h2></div><div class="blk" data-sec="1-problem"><p>I first needed a model that can extract a foreground element from two images: a composite image with the said element, and the same image without the element (background). </p></div><div class="blk" data-sec="1-problem"><p>However, after trying some models attempting to solve this issue (such as LayerDiffusion) none were fast enough or accurate enough to extract the elements I wanted.</p></div><div class="blk" data-sec="1-problem"><p>A normal VAE has never been asked what transparency is. If you widen its first and last layers to four channels and train only on colour, the decoder learns to reproduce colour while the alpha channel collapses into solid or noisy values.</p></div><div class="blk" data-sec="1-problem"><p>The real difficulty is that alpha is tangled up with colour. A half-transparent red pixel over black looks exactly like an opaque dark-red pixel. The network needs a training signal that tells those two cases apart.</p></div><div class="blk" data-sec="1-problem"><p>My goals were:</p></div><div class="blk" data-sec="1-problem"><ol>
+<li>encode and decode alpha accurately;</li>
+<li>keep the VAE's original colour behaviour;</li>
+<li>keep the latent the same shape, so the existing FLUX.2 transformer can be reused, with small task adapters trained on top.</li>
+</ol></div><div class="blk" data-sec="1-problem"><hr /></div><div class="blk" data-sec="2-the-models-in-this-paper"><h2>2. The models in this paper</h2></div><div class="blk" data-sec="2-the-models-in-this-paper"><p>I trained many checkpoints. These are the ones this paper uses, with the names used from here on.</p></div><div class="blk" data-sec="2-the-models-in-this-paper"><h3>2.1 VAE checkpoints</h3></div><div class="blk" data-sec="2-the-models-in-this-paper"><div class="tbl"><table>
+<thead>
+<tr>
+<th>Name</th>
+<th>What it is</th>
+<th>Training</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Main (7.1K)</strong></td>
+<td>early checkpoint of my main run</td>
+<td>all weights, step 7,100</td>
+</tr>
+<tr>
+<td><strong>Main (58K)</strong></td>
+<td>final checkpoint of my main run; <strong>the VAE I use</strong></td>
+<td>all weights, step 58,000</td>
+</tr>
+<tr>
+<td><strong>Gradient (49K)</strong></td>
+<td>alpha-only run with extra synthetic gradient images; its RGB lock leaked (§5)</td>
+<td>alpha weights only, step 49,000</td>
+</tr>
+<tr>
+<td><strong>Real-only (50K)</strong></td>
+<td>alpha-only run on real images, with the lock fixed</td>
+<td>alpha weights only, step 50,000</td>
+</tr>
+</tbody>
+</table></div></div><div class="blk" data-sec="2-the-models-in-this-paper"><h3>2.2 Adapters</h3></div><div class="blk" data-sec="2-the-models-in-this-paper"><p>Adapters are trained on top of the FLUX.2 Klein transformer.</p></div><div class="blk" data-sec="2-the-models-in-this-paper"><div class="tbl"><table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Task</th>
+<th>Base model</th>
+<th>Type</th>
+<th>VAE</th>
+<th>Inputs</th>
+<th>Training data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Generate-4B</strong></td>
+<td>text → transparent image</td>
+<td>Klein Base 4B</td>
+<td>LoRA</td>
+<td>Main (7.1K)</td>
+<td>text prompt</td>
+<td>~2,300 captioned transparent PNGs</td>
+</tr>
+<tr>
+<td><strong>Extract-4B-LoRA</strong></td>
+<td>pull an object out of a picture</td>
+<td>Klein Base 4B</td>
+<td>LoRA</td>
+<td>Main (58K)</td>
+<td>composite with mask in alpha ³ + background plate ²</td>
+<td>58 examples</td>
+</tr>
+<tr>
+<td><strong>Extract-4B-Full</strong></td>
+<td>same</td>
+<td>Klein Base 4B</td>
+<td>full fine-tune</td>
+<td>Main (58K)</td>
+<td>composite ¹ + background plate ²</td>
+<td>2,039 examples</td>
+</tr>
+<tr>
+<td><strong>Extract-9B</strong></td>
+<td>same</td>
+<td>Klein Base 9B</td>
+<td>LoRA</td>
+<td>Main (58K)</td>
+<td>composite ¹ + background plate ²</td>
+<td>2,039 examples</td>
+</tr>
+<tr>
+<td><strong>Remove-9B</strong></td>
+<td>erase an object and fill the gap</td>
+<td>Klein Base 9B</td>
+<td>LoRA</td>
+<td>Main (58K)</td>
+<td>photo with object marked in alpha ⁴</td>
+<td>10,755 pairs</td>
+</tr>
+</tbody>
+</table></div></div><div class="blk" data-sec="2-the-models-in-this-paper"><p>¹ <strong>Composite</strong>: the object pasted onto a background, which is the image you want to extract from.</p></div><div class="blk" data-sec="2-the-models-in-this-paper"><p>² <strong>Background plate</strong>: the same background <em>without</em> the object.</p></div><div class="blk" data-sec="2-the-models-in-this-paper"><p>³ <strong>Composite with mask in alpha</strong>: the composite, with its alpha channel set to 255 on the object and 128 everywhere else, so the model is told which object to take.</p></div><div class="blk" data-sec="2-the-models-in-this-paper"><p>⁴ <strong>Photo with object marked in alpha</strong>: the photo, with alpha 128 on the object to remove and 255 everywhere else.</p></div><div class="blk" data-sec="2-the-models-in-this-paper"><p><em>Later reference model:</em></p></div><div class="blk" data-sec="2-the-models-in-this-paper"><div class="tbl"><table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Task</th>
+<th>Base model</th>
+<th>Type</th>
+<th>VAE</th>
+<th>Inputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Qwen-Extract</td>
+<td>pull an object out of a picture</td>
+<td>Qwen-Image-2.1 turbo (4 steps)</td>
+<td>LoRA</td>
+<td>Qwen's own RGBA VAE</td>
+<td>composite ¹ + mask hint ⁵ + fixed text prompt</td>
+</tr>
+</tbody>
+</table></div></div><div class="blk" data-sec="2-the-models-in-this-paper"><p>⁵ <strong>Mask hint</strong>: the composite darkened to 20% outside the object's mask.</p></div><div class="blk" data-sec="2-the-models-in-this-paper"><p>I began this project before Qwen-Image-2.1 was released. Once it came out, I trained Qwen-Extract on it for another project. It is included here as a reference point: it shows how my FLUX adapters compare with a newer model built with transparency in mind. Figure 5 (§8) shows Extract-9B's inputs and output on a real photo.</p></div><div class="blk" data-sec="2-the-models-in-this-paper"><hr /></div><div class="blk" data-sec="3-architecture-figure-1"><h2>3. Architecture (Figure 1)</h2></div><div class="blk" data-sec="3-architecture-figure-1"><p><img alt="Figure 1" src="figures/fig1_architecture.png" /></p></div><div class="blk" data-sec="3-architecture-figure-1"><p>The base model is <code>AutoencoderKLFlux2</code>. Its internal layers go through 128 / 256 / 512 / 512 channels down to a 32-channel latent at one-eighth resolution. I changed only its first and last convolutions:</p></div><div class="blk" data-sec="3-architecture-figure-1"><div class="tbl"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Original</th>
+<th>RGBA</th>
+<th>New parameters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>encoder.conv_in.weight</code></td>
+<td>[128, 3, 3, 3]</td>
+<td>[128, 4, 3, 3]</td>
+<td>1,152</td>
+</tr>
+<tr>
+<td><code>decoder.conv_out.weight</code></td>
+<td>[3, 128, 3, 3]</td>
+<td>[4, 128, 3, 3]</td>
+<td>1,152</td>
+</tr>
+<tr>
+<td><code>decoder.conv_out.bias</code></td>
+<td>[3]</td>
+<td>[4]</td>
+<td>1</td>
+</tr>
+</tbody>
+</table></div></div><div class="blk" data-sec="3-architecture-figure-1"><p>That makes 2,305 new parameters out of 84,048,677 (encoder 34.4M, decoder 49.6M). The latent keeps its shape, so the transformer receives exactly the input size it expects. Whether it can <em>use</em> those latents to make transparent images is a separate question, answered in §6.</p></div><div class="blk" data-sec="3-architecture-figure-1"><hr /></div><div class="blk" data-sec="4-training-objective-figure-2"><h2>4. Training objective (Figure 2)</h2></div><div class="blk" data-sec="4-training-objective-figure-2"><p><img alt="Figure 2" src="figures/fig2_triple_background_loss.png" /></p></div><div class="blk" data-sec="4-training-objective-figure-2"><p>I used the loss from AlphaVAE (Wang et al., 2025) and adapted it to FLUX.2. Each training image is shown to the VAE three ways:</p></div><div class="blk" data-sec="4-training-objective-figure-2"><ul>
+<li>the original RGBA;</li>
+<li>flattened onto black;</li>
+<li>flattened onto white.</li>
+</ul></div><div class="blk" data-sec="4-training-objective-figure-2"><p>The two flattened versions have alpha set to fully opaque. All three go through the encoder as one batch, each is decoded, and the three losses are averaged.</p></div><div class="blk" data-sec="4-training-objective-figure-2"><p>Each loss compares <em>premultiplied</em> colour (colour × alpha) and alpha, weighted by the average colour of typical backgrounds. It therefore measures how wrong the image would <em>look</em> when placed on a background, not how wrong the raw numbers are. The black and white views catch mistakes that are hidden by single a background, for instance a light fringe is invisible on white and obvious on black.</p></div><div class="blk" data-sec="4-training-objective-figure-2"><pre><code>d_rgb = target_rgb · target_a − pred_rgb · pred_a        (premultiplied colour error)
+d_a   = target_a − pred_a                                (alpha error)
+L     = d_rgb² − 2·E[b]·d_rgb·d_a + E[b²]·d_a²
+E[b]  = [−0.0357, −0.0811, −0.1797]    E[b²] = [0.3163, 0.3060, 0.3634]
+</code></pre></div><div class="blk" data-sec="4-training-objective-figure-2"><p>The three views do not mathematically force the network to separate colour from alpha. They make almost every separation mistake show up in the loss.</p></div><div class="blk" data-sec="4-training-objective-figure-2"><hr /></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><h2>5. What I locked, and a bug I found (Figure 3)</h2></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p><img alt="Figure 3" src="figures/fig3_training_modes.png" /></p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p>I tried three levels of freezing:</p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><div class="tbl"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th style="text-align: right;">Trainable parameters</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A. Everything</td>
+<td style="text-align: right;">84,048,677 (100%)</td>
+<td>Main (7.1K), Main (58K)</td>
+</tr>
+<tr>
+<td>B. First and last layers only</td>
+<td style="text-align: right;">9,348 (0.011%)</td>
+<td>trainer option, not used for these checkpoints</td>
+</tr>
+<tr>
+<td>C. Only the new alpha slices</td>
+<td style="text-align: right;">2,305 (0.0027%)</td>
+<td>Gradient (49K), Real-only (50K)</td>
+</tr>
+</tbody>
+</table></div></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p><strong>Why synthetic gradient images.</strong> Mode C gave me an idea. If the colour weights are frozen, the colour content of a training image matters much less: almost everything the model learns comes from the alpha channel. So instead of collecting more curated transparent images, I could generate them. I made 5,000 synthetic images: random colour gradients, flat colours or noise, cut into shapes by an alpha channel. The alpha is either a simple shape (blurred ellipses, rectangles, cloudy noise, fades) or the silhouette of a real transparent image. Gradient (49K) trained on these plus the 5,829 real images, at resolutions from 256 to 768 pixels.</p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p><img alt="Examples of the synthetic gradient images" src="figures/gradient_samples.png" /></p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p><em>Examples of the synthetic training images, shown on a checkerboard (transparent areas).</em></p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p>Mode C was meant to leave every colour weight untouched. I zeroed their gradients with hooks and trained Gradient (49K) for 49,000 steps. When I compared its final weights with its starting weights, 4 of 251 tensors had moved. The colour weights had all been multiplied by the same factor, <strong>0.99581</strong>.</p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p>A gradient would not scale everything by one number, meaning it was an optimiser issue. AdamW applies <em>weight decay</em> to every parameter it is given, whether or not its gradient is zero. My masks stopped the gradients but not the decay. I had also forgotten to mask one bias vector (<code>encoder.conv_in.bias</code>, 128 values).</p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p>The fix was to give the optimiser only the parameters meant to train, set weight decay to zero, and freeze that bias. After a 300-step test, the colour weights were <strong>bit-for-bit identical</strong>, while the alpha weights had changed. <strong>Real-only (50K)</strong> was trained this way.</p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><p>Normally freezing the colour weights does not keep the colour output exactly the same: the new alpha weights feed into the same first layer, so they can still nudge the latent slightly. But in practice the colour error did not change (0.0133 for both).</p></div><div class="blk" data-sec="5-what-i-locked-and-a-bug-i-found-figure-3"><hr /></div><div class="blk" data-sec="6-vae-results-figure-4"><h2>6. VAE results (Figure 4)</h2></div><div class="blk" data-sec="6-vae-results-figure-4"><p><img alt="Figure 4" src="figures/fig4_vae_checkpoints.png" /></p></div><div class="blk" data-sec="6-vae-results-figure-4"><p><strong>Test:</strong> 24 held-out RGBA images, centre-cropped to 256 × 256. Each is encoded and decoded, then compared with the original. The error is RMSE on a 0–1 scale, so lower is better:</p></div><div class="blk" data-sec="6-vae-results-figure-4"><ul>
+<li><strong>alpha</strong>: error on the transparency channel;</li>
+<li><strong>premultiplied RGB</strong>: error on the visible colour;</li>
+<li><strong>white composite</strong>: error after flattening onto white, as a viewer would see it.</li>
+</ul></div><div class="blk" data-sec="6-vae-results-figure-4"><div class="tbl"><table>
+<thead>
+<tr>
+<th>VAE</th>
+<th style="text-align: right;">Alpha RMSE</th>
+<th style="text-align: right;">Premultiplied RGB RMSE</th>
+<th style="text-align: right;">White-composite RMSE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>Stock FLUX.2 VAE (RGB only)</em></td>
+<td style="text-align: right;">–</td>
+<td style="text-align: right;"><em>0.0121</em></td>
+<td style="text-align: right;"><em>0.0138</em></td>
+</tr>
+<tr>
+<td>Main (7.1K)</td>
+<td style="text-align: right;">0.0391</td>
+<td style="text-align: right;">0.0228</td>
+<td style="text-align: right;">0.0283</td>
+</tr>
+<tr>
+<td><strong>Main (58K)</strong></td>
+<td style="text-align: right;"><strong>0.0204</strong></td>
+<td style="text-align: right;">0.0133</td>
+<td style="text-align: right;"><strong>0.0163</strong></td>
+</tr>
+<tr>
+<td>Gradient (49K)</td>
+<td style="text-align: right;">0.0211</td>
+<td style="text-align: right;">0.0137</td>
+<td style="text-align: right;">0.0167</td>
+</tr>
+<tr>
+<td>Real-only (50K)</td>
+<td style="text-align: right;">0.0205</td>
+<td style="text-align: right;"><strong>0.0133</strong></td>
+<td style="text-align: right;">0.0164</td>
+</tr>
+</tbody>
+</table></div></div><div class="blk" data-sec="6-vae-results-figure-4"><p><strong>Main (58K) is the best VAE.</strong> Its alpha error is 48% lower than Main (7.1K)'s. Real-only (50K) comes within 0.7%, a gap too small to call on 24 images. Training only the alpha slices did not beat training everything.</p></div><div class="blk" data-sec="6-vae-results-figure-4"><p><strong>The price of transparency.</strong> The first row is the original FLUX.2 VAE, which has no alpha channel. It was given the images already flattened onto black and white, and its alpha column is empty. Compared with it, Main (58K) has about 10% more colour error on black (0.0133 vs 0.0121) and 18% more on white (0.0163 vs 0.0138). That is the cost of fitting transparency into the same latent, or maybe a longer training would fix this error.</p></div><div class="blk" data-sec="6-vae-results-figure-4"><p><strong>Why Main (7.1K) is compared.</strong> For two reasons: to show how the VAE improved during training, and because Generate-4B, my text-to-transparent-image LoRA, was trained with Main (7.1K) as its VAE. An adapter learns the habits of the VAE it was trained with, and probably learns to compensate for that VAE's errors. Decoding Generate-4B through Main (58K) therefore makes the background mostly opaque: mean border alpha 190/255, against 0.2/255 through Main (7.1K) (one prompt, "cartoon apple"). This comes from the mismatch, not from Main (58K) being worse. Retraining Generate-4B on Main (58K) is still to do.</p></div><div class="blk" data-sec="6-vae-results-figure-4"><p><strong>Main (58K) training:</strong> 5,829 real RGBA images, 256-pixel crops, about 58,000 steps (20 epochs at batch 2), learning rate 1e-5 with a cosine schedule, fp16. It used only the composite loss, with no perceptual or adversarial terms. The starting point was the FLUX.2-dev VAE with its end layers widened.</p></div><div class="blk" data-sec="6-vae-results-figure-4"><p>The synthetic gradient images (§5) improved results on synthetic test images but not on the real ones: Real-only (50K), trained without them, is slightly better on every measure in the table. Gradient (49K) also had the leaky lock, though, so the two causes cannot be fully separated.</p></div><div class="blk" data-sec="6-vae-results-figure-4"><hr /></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><h2>7. Tooling: my ai-toolkit fork, "ai-toolkit-RGBA"</h2></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><p>I trained all FLUX adapters with ai-toolkit (ostris), an open-source trainer. Out of the box it cannot use a four-channel VAE, so I modified it.</p></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><blockquote>
+<p><strong>Changes required for alpha training.</strong> Without these, ai-toolkit cannot train on transparency.</p>
+<ol>
+<li><strong>RGBA VAE loading:</strong> a small adapter class lets the trainer load a four-channel VAE from a folder via <code>vae_path</code>.</li>
+<li><strong>RGBA data:</strong> a new <code>rgba: true</code> option keeps the alpha channel on training images and on the input (control) images. Under fully transparent pixels, it fills the invisible colour with nearby colours ("alpha bleed"), so black does not leak into edges as a dark halo.</li>
+<li><strong>RGBA previews:</strong> during training, samples are decoded by the four-channel VAE and saved as transparent PNGs.</li>
+</ol>
+</blockquote></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><p><strong>Changes that improved quality</strong></p></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><ul>
+<li><em>Edge-weighted loss:</em> the trainer finds the object's alpha edges and weights the loss there. A soft, semi-transparent ring around an object is a small error spread over many pixels, which a normal loss barely notices.</li>
+<li><em>Sharpness loss:</em> compares the sharpness (spatial gradients) of the prediction with the target's, so blurry edges cost more.</li>
+</ul></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><p>Extract-9B used both. The other adapters used neither.</p></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><p><strong>Changes for my hardware.</strong> With DeepSpeed ZeRO-3 over two GPUs, a <strong>full fine-tune of the 4B transformer fits on two 16 GB consumer cards</strong>; that is how I trained Extract-4B-Full. I also added faster caching and job-queue improvements to the web UI.</p></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><p>In total I changed 41 files of upstream ai-toolkit (+1,472 / −252 lines) and added several new modules.</p></div><div class="blk" data-sec="7-tooling-my-ai-toolkit-fork-ai-toolkit-rgba"><hr /></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><h2>8. Extracting objects: how the adapters compare</h2></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p>I tested the extraction adapters on 20 transparent objects that none of them saw during training. Each model gets the inputs it was trained with (Figure 5). Qwen-Extract, trained later on the newer Qwen-Image-2.1, is included as a reference.</p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p><img alt="Figure 5" src="figures/fig5_extraction_io.png" /></p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p>Figure 5 uses a real photo of hands making a shadow puppet, and a photo of the same wall without them. The hands' shadow is exactly the kind of soft, semi-transparent detail an RGBA pipeline is for: Extract-9B cuts out the hands and keeps the shadow as a soft, semi-transparent dark layer. (There is no ground truth for this photo, so it is a visual example only; the scores below come from the 20 test images.) <em>Photo: Shutterstock #643993384 (via KiwiCo); background plate generated with Google Gemini from the same photo.</em></p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><h3>8.1 How I score a cut-out</h3></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p>A cut-out's alpha is soft, anywhere between 0 and 1. To compare it with the true object, I count a pixel as <em>object</em> when it is more than 50% opaque. The score is the <strong>IoU</strong>: the overlap between the predicted and true object, divided by their combined area, where 1.0 is perfect. I also report the IoU of just the outline (<strong>boundary IoU</strong>) and the average alpha error, which needs no threshold.</p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p>The 50% cut is a simplification. About 14% of these objects is soft detail such as glow, shadow and reflections, which it counts as background. Figure 7 shows how the scores change when the cut moves.</p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><h3>8.2 Results</h3></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p><img alt="Figure 6" src="figures/fig6_extraction_headline.png" /></p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><div class="tbl"><table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">Extract-4B-LoRA</th>
+<th style="text-align: right;">Extract-4B-Full</th>
+<th style="text-align: right;"><strong>Extract-9B</strong></th>
+<th style="text-align: right;"><em>Qwen-Extract raw</em></th>
+<th style="text-align: right;"><em>Qwen-Extract prod.</em></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IoU @ 50%</td>
+<td style="text-align: right;">0.665</td>
+<td style="text-align: right;">0.879</td>
+<td style="text-align: right;"><strong>0.934</strong></td>
+<td style="text-align: right;"><em>0.919</em></td>
+<td style="text-align: right;"><em>0.939</em></td>
+</tr>
+<tr>
+<td>Boundary IoU</td>
+<td style="text-align: right;">0.614</td>
+<td style="text-align: right;">0.766</td>
+<td style="text-align: right;">0.827</td>
+<td style="text-align: right;"><em>0.837</em></td>
+<td style="text-align: right;"><em>0.875</em></td>
+</tr>
+<tr>
+<td>Alpha error</td>
+<td style="text-align: right;">0.054</td>
+<td style="text-align: right;">0.015</td>
+<td style="text-align: right;"><strong>0.009</strong></td>
+<td style="text-align: right;"><em>0.017</em></td>
+<td style="text-align: right;"><em>0.009</em></td>
+</tr>
+<tr>
+<td>Empty results</td>
+<td style="text-align: right;">4 / 20</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;"><em>0</em></td>
+<td style="text-align: right;"><em>0</em></td>
+</tr>
+<tr>
+<td>Seconds per image</td>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">46 (11 at 6 steps)</td>
+<td style="text-align: right;"><em>2.4</em></td>
+<td style="text-align: right;"><em>15</em></td>
+</tr>
+</tbody>
+</table></div></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p><em>Italics = Qwen-Extract, the later reference model. "Prod." is Qwen-Extract with its post-processing.</em></p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><ol>
+<li><strong>Extract-9B is my best extractor.</strong> It beats Extract-4B-Full on 18 of 20 images. On overall accuracy it is level with Qwen-Extract.</li>
+<li><strong>Extract-4B-Full</strong> might close the gap with more training: it stopped at 1,750 of its 3,000 planned steps.</li>
+<li><strong>Extract-4B-LoRA, my first attempt, is unreliable.</strong> It returned nothing on 4 images. It was trained on only 58 examples; the later adapters used 2,039.</li>
+<li><strong>Qwen-Extract is faster</strong>, but it needs two GPUs (even with Quantization), while Extract-9B fits on one 16 GB card (with Quantization).</li>
+<li><strong>Extract-9B does not need 25 steps.</strong> At 6 sampling steps it scores the same on the 20 test images (IoU 0.934 at both; alpha error 0.0096 vs 0.0090) in 11 s instead of 46 s. That leaves Qwen-Extract raw about 5× faster, not 20×.</li>
+</ol></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p>With only 20 test images, I checked every difference claimed above with a paired statistical test (95% confidence).</p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p><img alt="Figure 7" src="figures/fig7_threshold_sweep.png" /></p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p>In Figure 7, Qwen-Extract production keeps climbing up to the highest cut, because its alpha is almost all-or-nothing. The FLUX adapters peak near 50% and drop on either side, because they keep more soft, in-between alpha.</p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><h3>8.3 What the pictures show (Figure 8)</h3></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p><img alt="Figure 8" src="figures/fig8_contact_sheet.png" /></p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><p>The scores miss things that are obvious to the eye:</p></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><ul>
+<li><strong>Leaves with a faint reflection.</strong> Extract-9B scores high (0.94), but its reflection is a blur. Qwen-Extract raw reproduces it best, and Qwen-Extract production cuts part of it off.</li>
+<li><strong>Icon with grey-filled cut-outs.</strong> The icon's cut-outs are filled with semi-transparent grey. Extract-9B and Extract-4B-LoRA keep the grey fill. Extract-4B-Full and both Qwen-Extract versions punch empty holes instead.</li>
+<li><strong>Leaf on a pink forest.</strong> Extract-4B-LoRA takes most of the forest along with the leaf. The others are clean.</li>
+<li><strong>Camouflage icon with a soft shadow.</strong> Extract-4B-Full drops the shadow, Qwen-Extract adds too much, and Extract-4B-LoRA returns nothing.</li>
+<li><strong>Flowers.</strong> Every model handles this well, bug only Qwen returns a visible reflection.</li>
+</ul></div><div class="blk" data-sec="8-extracting-objects-how-the-adapters-compare"><hr /></div><div class="blk" data-sec="9-limitations"><h2>9. Limitations</h2></div><div class="blk" data-sec="9-limitations"><ul>
+<li>The VAE test uses 24 images at one resolution. Differences under about 1% are not meaningful.</li>
+<li>The Generate-4B comparison (Figure 4B) is one prompt and one seed.</li>
+<li>Generate-4B has not been retrained on Main (58K).</li>
+<li>The adapters differ in size, training length, data and losses, so the benchmark compares finished systems, not single factors.</li>
+<li>The extraction test has 20 images and one seed per image.</li>
+<li>The FLUX.2-dev-derived weights carry the FLUX Non-Commercial License.</li>
+</ul></div><div class="blk" data-sec="9-limitations"><hr /></div><div class="blk" data-sec="credits"><h2>Credits</h2></div><div class="blk" data-sec="credits"><p>AlphaVAE (Wang, Yu, Zhan, Yuan, 2025) for the RGBA VAE method and composite loss. LayerDiffuse and its FLUX.1 adaptation for the VAE-plus-adapter idea. ostris/ai-toolkit as the trainer I modified. Black Forest Labs (FLUX.2) and Qwen (Qwen-Image-2.1) for the base models.</p></div></main></body></html>
